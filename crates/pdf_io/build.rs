@@ -160,6 +160,19 @@ fn main() {
 
     ccfg.compile("libtectonic_pdf_io.a");
 
+    // On wasm32, the C code in pdf_io calls zlib functions directly (inflate,
+    // crc32, etc.) which need to be linked from the sysroot's libz.a.
+    if env::var("CARGO_CFG_TARGET_ARCH").as_deref() == Ok("wasm32") {
+        if let Ok(zlib_lib_dir) = env::var("ZLIB_LIB_DIR") {
+            for dir in zlib_lib_dir.split(';') {
+                if !dir.is_empty() {
+                    println!("cargo:rustc-link-search=native={dir}");
+                }
+            }
+        }
+        println!("cargo:rustc-link-lib=static=z");
+    }
+
     // Cargo exposes this as the environment variable DEP_XXX_INCLUDE_PATH,
     // where XXX is the "links" setting in Cargo.toml. This is the key element
     // that allows us to have a network of crates containing both C/C++ and Rust

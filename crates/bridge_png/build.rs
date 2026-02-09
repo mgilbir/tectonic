@@ -12,6 +12,14 @@ impl Spec for LibpngSpec {
     fn get_vcpkg_spec(&self) -> &[&str] {
         &["libpng"]
     }
+
+    fn get_manual_env_prefix(&self) -> String {
+        "PNG".into()
+    }
+
+    fn get_manual_link_libs(&self) -> Vec<String> {
+        vec!["png16".into()]
+    }
 }
 
 fn main() {

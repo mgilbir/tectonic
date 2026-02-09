@@ -19,6 +19,14 @@ impl Spec for IcuSpec {
     fn get_vcpkg_spec(&self) -> &[&str] {
         &["icu"]
     }
+
+    fn get_manual_env_prefix(&self) -> String {
+        "ICUUC".into()
+    }
+
+    fn get_manual_link_libs(&self) -> Vec<String> {
+        vec!["icuuc".into(), "icudata".into()]
+    }
 }
 
 fn main() {
@@ -50,4 +58,6 @@ fn main() {
         // linker requires.
         println!("cargo:rustc-link-lib=icudata");
     }
+
+    // Manual backend already handles link libs via emit()
 }

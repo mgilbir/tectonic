@@ -112,8 +112,12 @@ mod inner {
             cfg.define("GRAPHITE2_STATIC", "1");
         }
 
-        if !target.contains("windows") {
+        if !target.contains("windows") && !target.contains("wasm32") {
             cfg.define("HAVE_PTHREAD", "1");
+        }
+
+        if target.contains("wasm32") {
+            cfg.define("HB_NO_MT", "1");
         }
 
         if target.contains("apple") {

@@ -17,6 +17,10 @@ impl Spec for Graphite2Spec {
     fn get_vcpkg_spec(&self) -> &[&str] {
         &["graphite2"]
     }
+
+    fn get_manual_link_libs(&self) -> Vec<String> {
+        vec!["graphite2".into()]
+    }
 }
 
 fn main() {

@@ -18,6 +18,10 @@ impl Spec for Freetype2Spec {
     fn get_vcpkg_spec(&self) -> &[&str] {
         &["freetype"]
     }
+
+    fn get_manual_link_libs(&self) -> Vec<String> {
+        vec!["freetype".into()]
+    }
 }
 
 fn main() {

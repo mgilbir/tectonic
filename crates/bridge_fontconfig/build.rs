@@ -1,20 +1,29 @@
 //! fontconfig build script. For now, we always find it externally.
+//! On wasm32 targets, fontconfig is not available, so we emit empty metadata.
 
-use tectonic_dep_support::{Configuration, Dependency, Spec};
-
-struct FontconfigSpec;
-
-impl Spec for FontconfigSpec {
-    fn get_pkgconfig_spec(&self) -> &str {
-        "fontconfig"
-    }
-
-    fn get_vcpkg_spec(&self) -> &[&str] {
-        &["fontconfig"]
-    }
-}
+use std::env;
 
 fn main() {
+    // On wasm32, fontconfig is not available - emit empty include path
+    if env::var("CARGO_CFG_TARGET_ARCH").as_deref() == Ok("wasm32") {
+        println!("cargo:include-path=");
+        return;
+    }
+
+    use tectonic_dep_support::{Configuration, Dependency, Spec};
+
+    struct FontconfigSpec;
+
+    impl Spec for FontconfigSpec {
+        fn get_pkgconfig_spec(&self) -> &str {
+            "fontconfig"
+        }
+
+        fn get_vcpkg_spec(&self) -> &[&str] {
+            &["fontconfig"]
+        }
+    }
+
     // Find any necessary deps.
 
     let dep_cfg = Configuration::default();

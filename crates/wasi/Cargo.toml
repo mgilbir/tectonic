@@ -1,0 +1,32 @@
+# Copyright 2024 the Tectonic Project
+# Licensed under the MIT License.
+
+[package]
+name = "tectonic_wasi"
+version = "0.0.0-dev.0"
+authors = ["Tectonic Project Contributors"]
+description = """
+Tectonic as a WASI reactor library, for embedding via wazero or other WASI runtimes.
+"""
+homepage = "https://tectonic-typesetting.github.io/"
+repository = "https://github.com/tectonic-typesetting/tectonic/"
+license = "MIT"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "tectonic_wasi"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+sha2 = "^0.10"
+flate2 = { version = "^1.0", default-features = false, features = ["rust_backend"] }
+tectonic_bridge_core = { path = "../bridge_core", version = "0.0.0-dev.0" }
+tectonic_engine_bibtex = { path = "../engine_bibtex", version = "0.0.0-dev.0" }
+tectonic_engine_xdvipdfmx = { path = "../engine_xdvipdfmx", version = "0.0.0-dev.0" }
+tectonic_engine_xetex = { path = "../engine_xetex", version = "0.0.0-dev.0" }
+tectonic_errors = { path = "../errors", version = "0.0.0-dev.0" }
+tectonic_io_base = { path = "../io_base", version = "0.0.0-dev.0" }
+tectonic_status_base = { path = "../status_base", version = "0.0.0-dev.0" }
+tectonic_bundles = { path = "../bundles", version = "0.0.0-dev.0", default-features = false }

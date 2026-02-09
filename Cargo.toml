@@ -56,6 +56,7 @@ members = [
     "crates/mac_core",
     "crates/pdf_io",
     "crates/status_base",
+    "crates/wasi",
     "crates/xdv",
     "crates/xetex_format",
     "crates/xetex_layout",

@@ -1,0 +1,86 @@
+// Minimal <mutex> stub for single-threaded WASI builds (ICU only).
+// WASI has no threading support; all lock operations are no-ops.
+#ifndef _WASI_MUTEX_STUB_H
+#define _WASI_MUTEX_STUB_H
+
+#include <atomic>
+
+namespace std {
+
+// Tag types for lock constructors
+struct defer_lock_t { explicit defer_lock_t() = default; };
+struct try_to_lock_t { explicit try_to_lock_t() = default; };
+struct adopt_lock_t { explicit adopt_lock_t() = default; };
+inline constexpr defer_lock_t defer_lock {};
+inline constexpr try_to_lock_t try_to_lock {};
+inline constexpr adopt_lock_t adopt_lock {};
+
+class mutex {
+public:
+    constexpr mutex() noexcept = default;
+    ~mutex() = default;
+    mutex(const mutex&) = delete;
+    mutex& operator=(const mutex&) = delete;
+    void lock() {}
+    bool try_lock() { return true; }
+    void unlock() {}
+};
+
+class recursive_mutex {
+public:
+    recursive_mutex() = default;
+    ~recursive_mutex() = default;
+    recursive_mutex(const recursive_mutex&) = delete;
+    recursive_mutex& operator=(const recursive_mutex&) = delete;
+    void lock() {}
+    bool try_lock() { return true; }
+    void unlock() {}
+};
+
+template<class Mutex>
+class lock_guard {
+public:
+    using mutex_type = Mutex;
+    explicit lock_guard(mutex_type& m) : _m(m) { _m.lock(); }
+    lock_guard(mutex_type& m, adopt_lock_t) : _m(m) {}
+    ~lock_guard() { _m.unlock(); }
+    lock_guard(const lock_guard&) = delete;
+    lock_guard& operator=(const lock_guard&) = delete;
+private:
+    mutex_type& _m;
+};
+
+template<class Mutex>
+class unique_lock {
+public:
+    using mutex_type = Mutex;
+    unique_lock() noexcept : _m(nullptr), _owns(false) {}
+    explicit unique_lock(mutex_type& m) : _m(&m), _owns(true) { _m->lock(); }
+    unique_lock(mutex_type& m, defer_lock_t) noexcept : _m(&m), _owns(false) {}
+    unique_lock(mutex_type& m, adopt_lock_t) noexcept : _m(&m), _owns(true) {}
+    ~unique_lock() { if (_owns && _m) _m->unlock(); }
+    unique_lock(unique_lock&& u) noexcept : _m(u._m), _owns(u._owns) { u._m = nullptr; u._owns = false; }
+    unique_lock& operator=(unique_lock&& u) noexcept {
+        if (_owns && _m) _m->unlock();
+        _m = u._m; _owns = u._owns; u._m = nullptr; u._owns = false;
+        return *this;
+    }
+    void lock() { _m->lock(); _owns = true; }
+    bool try_lock() { _owns = _m->try_lock(); return _owns; }
+    void unlock() { _m->unlock(); _owns = false; }
+    bool owns_lock() const noexcept { return _owns; }
+    explicit operator bool() const noexcept { return _owns; }
+    mutex_type* mutex() const noexcept { return _m; }
+private:
+    mutex_type* _m;
+    bool _owns;
+};
+
+// once_flag and call_once are already provided by libc++ (__mutex/once_flag.h)
+
+} // namespace std
+
+// Pull in the real once_flag/call_once from libc++
+#include <__mutex/once_flag.h>
+
+#endif // _WASI_MUTEX_STUB_H

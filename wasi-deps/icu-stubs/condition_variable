@@ -1,0 +1,26 @@
+// Minimal <condition_variable> stub for single-threaded WASI builds (ICU only).
+#ifndef _WASI_CONDITION_VARIABLE_STUB_H
+#define _WASI_CONDITION_VARIABLE_STUB_H
+
+#include "mutex"
+
+namespace std {
+
+enum class cv_status { no_timeout, timeout };
+
+class condition_variable {
+public:
+    condition_variable() = default;
+    ~condition_variable() = default;
+    condition_variable(const condition_variable&) = delete;
+    condition_variable& operator=(const condition_variable&) = delete;
+    void notify_one() noexcept {}
+    void notify_all() noexcept {}
+    void wait(unique_lock<mutex>&) {}
+    template<class Predicate>
+    void wait(unique_lock<mutex>&, Predicate pred) { while (!pred()) {} }
+};
+
+} // namespace std
+
+#endif // _WASI_CONDITION_VARIABLE_STUB_H

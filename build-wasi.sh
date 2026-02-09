@@ -38,7 +38,8 @@ fi
 export CC_wasm32_wasip1="${WASI_SDK_PATH}/bin/clang"
 export CXX_wasm32_wasip1="${WASI_SDK_PATH}/bin/clang++"
 export AR_wasm32_wasip1="${WASI_SDK_PATH}/bin/llvm-ar"
-export CFLAGS_wasm32_wasip1="--sysroot=${WASI_SDK_PATH}/share/wasi-sysroot -I${SYSROOT}/include -D_WASI_EMULATED_MMAN -D_WASI_EMULATED_SIGNAL -mllvm -wasm-enable-sjlj"
+SJLJ_STUB="${SCRIPT_DIR}/wasi-deps/sjlj-stub"
+export CFLAGS_wasm32_wasip1="--sysroot=${WASI_SDK_PATH}/share/wasi-sysroot -isystem ${SJLJ_STUB} -I${SYSROOT}/include -D_WASI_EMULATED_MMAN -D_WASI_EMULATED_SIGNAL"
 export CXXFLAGS_wasm32_wasip1="${CFLAGS_wasm32_wasip1} -fno-exceptions"
 
 # ---------------------------------------------------------------------------

@@ -42,7 +42,8 @@ export RANLIB="${WASI_SDK_PATH}/bin/llvm-ranlib"
 export NM="${WASI_SDK_PATH}/bin/llvm-nm"
 export STRIP="${WASI_SDK_PATH}/bin/llvm-strip"
 
-COMMON_CFLAGS="--target=wasm32-wasi --sysroot=${WASI_SDK_PATH}/share/wasi-sysroot -O2 -D_WASI_EMULATED_MMAN -D_WASI_EMULATED_SIGNAL -mllvm -wasm-enable-sjlj"
+SJLJ_STUB="${SCRIPT_DIR}/sjlj-stub"
+COMMON_CFLAGS="--target=wasm32-wasi --sysroot=${WASI_SDK_PATH}/share/wasi-sysroot -O2 -D_WASI_EMULATED_MMAN -D_WASI_EMULATED_SIGNAL -isystem ${SJLJ_STUB}"
 COMMON_CXXFLAGS="${COMMON_CFLAGS} -fno-exceptions"
 
 export CFLAGS="${COMMON_CFLAGS}"
@@ -302,7 +303,7 @@ build_icu() {
         export NM="${WASI_SDK_PATH}/bin/llvm-nm"
         export STRIP="${WASI_SDK_PATH}/bin/llvm-strip"
         ICU_STUBS="${SCRIPT_DIR}/icu-stubs"
-        export CFLAGS="--target=wasm32-wasi --sysroot=${WASI_SDK_PATH}/share/wasi-sysroot -O2 -D_WASI_EMULATED_MMAN -D_WASI_EMULATED_SIGNAL -mllvm -wasm-enable-sjlj -fno-exceptions -DU_HAVE_TZNAME=0"
+        export CFLAGS="--target=wasm32-wasi --sysroot=${WASI_SDK_PATH}/share/wasi-sysroot -O2 -D_WASI_EMULATED_MMAN -D_WASI_EMULATED_SIGNAL -isystem ${SJLJ_STUB} -fno-exceptions -DU_HAVE_TZNAME=0"
         export CXXFLAGS="${CFLAGS} -fno-exceptions -isystem ${ICU_STUBS}"
         export LDFLAGS="-lwasi-emulated-mman -lwasi-emulated-signal"
 
@@ -346,6 +347,17 @@ echo "  SYSROOT       : ${SYSROOT}"
 echo "  TOOLCHAIN     : ${TOOLCHAIN_FILE}"
 echo "  PARALLELISM   : ${NPROC}"
 
+build_sjlj_stub() {
+    msg "Building setjmp/longjmp stub"
+
+    mkdir -p "${SYSROOT}/lib"
+    "${CC}" ${COMMON_CFLAGS} -D_GNU_SOURCE -c "${SJLJ_STUB}/setjmp.c" -o "${BUILD_DIR}/setjmp.o"
+    "${AR}" rcs "${SYSROOT}/lib/libsetjmp_stub.a" "${BUILD_DIR}/setjmp.o"
+
+    echo "  sjlj stub installed to ${SYSROOT}/lib/libsetjmp_stub.a"
+}
+
+build_sjlj_stub
 build_zlib
 build_libpng
 build_freetype

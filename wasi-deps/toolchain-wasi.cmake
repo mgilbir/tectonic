@@ -53,8 +53,11 @@ set(CMAKE_USE_PTHREADS_INIT OFF)
 # ---------------------------------------------------------------------------
 # Misc flags helpful for most wasm builds
 # ---------------------------------------------------------------------------
-set(CMAKE_C_FLAGS_INIT   "-D_WASI_EMULATED_MMAN -D_WASI_EMULATED_SIGNAL -mllvm -wasm-enable-sjlj")
-set(CMAKE_CXX_FLAGS_INIT "-D_WASI_EMULATED_MMAN -D_WASI_EMULATED_SIGNAL -mllvm -wasm-enable-sjlj -fno-exceptions")
+# setjmp/longjmp stub: overrides the system setjmp.h (which requires
+# -mllvm -wasm-enable-sjlj) with a stub that avoids WASM exception handling.
+get_filename_component(_SJLJ_STUB_DIR "${CMAKE_CURRENT_LIST_DIR}/sjlj-stub" ABSOLUTE)
+set(CMAKE_C_FLAGS_INIT   "-D_WASI_EMULATED_MMAN -D_WASI_EMULATED_SIGNAL -isystem ${_SJLJ_STUB_DIR}")
+set(CMAKE_CXX_FLAGS_INIT "-D_WASI_EMULATED_MMAN -D_WASI_EMULATED_SIGNAL -isystem ${_SJLJ_STUB_DIR} -fno-exceptions")
 
 # Prevent CMake from testing the compiler with a full link (it will fail
 # because we do not have a full libc startup for executables by default).

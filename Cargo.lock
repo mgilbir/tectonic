@@ -3215,6 +3215,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "tectonic_wasi"
+version = "0.0.0-dev.0"
+dependencies = [
+ "anyhow",
+ "flate2",
+ "sha2",
+ "tectonic_bridge_core",
+ "tectonic_bundles",
+ "tectonic_engine_bibtex",
+ "tectonic_engine_xdvipdfmx",
+ "tectonic_engine_xetex",
+ "tectonic_errors",
+ "tectonic_io_base",
+ "tectonic_status_base",
+]
+
+[[package]]
 name = "tectonic_xdv"
 version = "0.0.0-dev.0"
 dependencies = [

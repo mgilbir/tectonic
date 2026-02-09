@@ -21,6 +21,11 @@ edition = "2021"
 links = "tectonic_bridge_flate"
 
 [dependencies]
-flate2 = { version = "^1.0", default-features = false, features = ["zlib"] }
 libc = "^0.2"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+flate2 = { version = "^1.0", default-features = false, features = ["zlib"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+flate2 = { version = "^1.0", default-features = false, features = ["rust_backend"] }
 

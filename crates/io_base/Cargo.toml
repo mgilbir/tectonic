@@ -18,13 +18,18 @@ license = "MIT"
 edition = "2021"
 
 [dependencies]
-app_dirs2 = "^2.3"
-flate2 = { version = "^1.0.19", default-features = false, features = ["zlib"] }
 libc = "^0.2" # for EISDIR :-(
 sha2 = "^0.10" # for digest computations
 thiserror = "2.0"
 tectonic_errors = { path = "../errors", version = "0.0.0-dev.0" }
 tectonic_status_base = { path = "../status_base", version = "0.0.0-dev.0" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+app_dirs2 = "^2.3"
+flate2 = { version = "^1.0.19", default-features = false, features = ["zlib"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+flate2 = { version = "^1.0.19", default-features = false, features = ["rust_backend"] }
 
 [package.metadata.internal_dep_versions]
 tectonic_errors = "e04798bcd9b1c1d68cc0a318a710bb30230a0300"

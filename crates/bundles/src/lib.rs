@@ -20,28 +20,40 @@ use tectonic_errors::{prelude::bail, Result};
 use tectonic_io_base::{digest::DigestData, InputHandle, IoProvider, OpenResult};
 use tectonic_status_base::StatusBackend;
 
+#[cfg(not(target_os = "wasi"))]
 pub mod cache;
 pub mod dir;
+#[cfg(not(target_os = "wasi"))]
 pub mod itar;
+#[cfg(not(target_os = "wasi"))]
 mod ttb;
+#[cfg(not(target_os = "wasi"))]
 pub mod ttb_fs;
+#[cfg(not(target_os = "wasi"))]
 pub mod ttb_net;
 pub mod zip;
 
+#[cfg(not(target_os = "wasi"))]
 use cache::BundleCache;
 use dir::DirBundle;
+#[cfg(not(target_os = "wasi"))]
 use itar::ItarBundle;
+#[cfg(not(target_os = "wasi"))]
 use ttb_fs::TTBFsBundle;
+#[cfg(not(target_os = "wasi"))]
 use ttb_net::TTBNetBundle;
 use zip::ZipBundle;
 
+#[cfg(not(target_os = "wasi"))]
 /// The current hardcoded default prefix for tectonic's bundle.
 const TECTONIC_BUNDLE_PREFIX_DEFAULT: &str = "https://relay.fullyjustified.net";
 
+#[cfg(not(target_os = "wasi"))]
 // How many times network bundles should retry
 // a download, and how long they should wait
 // between attempts.
 const NET_RETRY_ATTEMPTS: usize = 3;
+#[cfg(not(target_os = "wasi"))]
 const NET_RETRY_SLEEP_MS: u64 = 500;
 
 /// Uniquely identifies a file in a bundle.
@@ -119,6 +131,7 @@ impl<B: Bundle + ?Sized> Bundle for Box<B> {
     }
 }
 
+#[cfg(not(target_os = "wasi"))]
 /// A bundle that may be cached.
 ///
 /// These methods do not implement any new features.
@@ -159,6 +172,7 @@ where
     fn get_location(&mut self) -> String;
 }
 
+#[cfg(not(target_os = "wasi"))]
 impl<'this, T: FileIndex<'this>, B: CachableBundle<'this, T> + ?Sized> CachableBundle<'this, T>
     for Box<B>
 {
@@ -191,6 +205,7 @@ impl<'this, T: FileIndex<'this>, B: CachableBundle<'this, T> + ?Sized> CachableB
     }
 }
 
+#[cfg(not(target_os = "wasi"))]
 /// Try to open a bundle from a string,
 /// detecting its type.
 ///
@@ -274,6 +289,7 @@ pub fn detect_bundle(
 /// durable and reliable. We used `archive.org` for a while, but it had
 /// low-level reliability problems and was blocked in China. We now use a custom
 /// webservice.
+#[cfg(not(target_os = "wasi"))]
 pub fn get_fallback_bundle_url(format_version: u32) -> String {
     let bundle_locked = option_env!("TECTONIC_BUNDLE_LOCKED").unwrap_or("");
     let bundle_prefix =
@@ -293,11 +309,12 @@ pub fn get_fallback_bundle_url(format_version: u32) -> String {
     }
 }
 
+#[cfg(not(target_os = "wasi"))]
 /// Open the fallback bundle.
 ///
 /// This is essentially the default Tectonic bundle, but the higher-level
 /// `tectonic` crate provides a configuration mechanism to allow the user to
-/// override the bundle URL setting, and that should be preferred if you’re in a
+/// override the bundle URL setting, and that should be preferred if you're in a
 /// position to use it.
 pub fn get_fallback_bundle(format_version: u32, only_cached: bool) -> Result<Box<dyn Bundle>> {
     let url = get_fallback_bundle_url(format_version);

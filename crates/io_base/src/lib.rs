@@ -26,6 +26,7 @@ use thiserror::Error as ThisError;
 
 use crate::digest::DigestData;
 
+#[cfg(not(target_os = "wasi"))]
 pub mod app_dirs;
 pub mod digest;
 pub mod filesystem;

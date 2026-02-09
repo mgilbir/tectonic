@@ -10,10 +10,12 @@ use std::convert::TryFrom;
 use std::ffi::{CStr, CString};
 use tectonic_bridge_freetype2 as ft;
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "wasi")))]
 mod fc;
 #[cfg(target_os = "macos")]
 mod mac;
+#[cfg(target_os = "wasi")]
+mod wasi_fs;
 
 thread_local! {
     static FONT_MGR: RefCell<Option<FontManager>> = const { RefCell::new(None) };
@@ -317,7 +319,11 @@ impl FontManager {
         {
             backend = Box::new(mac::MacBackend::new());
         }
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(target_os = "wasi")]
+        {
+            backend = Box::new(wasi_fs::WasiFsBackend::new());
+        }
+        #[cfg(not(any(target_os = "macos", target_os = "wasi")))]
         {
             backend = Box::new(fc::FcBackend::new());
         }

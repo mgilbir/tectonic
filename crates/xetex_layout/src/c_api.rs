@@ -2,7 +2,7 @@ use crate::engine::LayoutEngine;
 use crate::font::Font;
 use std::collections::BTreeMap;
 use std::sync::Mutex;
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "wasi")))]
 use tectonic_bridge_fontconfig as fc;
 
 mod engine;
@@ -37,16 +37,31 @@ pub type GlyphID = u16;
 pub type XeTeXFont = *mut Font;
 /// cbindgen:ignore
 pub type XeTeXLayoutEngine = *mut LayoutEngine;
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "wasi")))]
 pub(crate) type RawPlatformFontRef = *mut fc::sys::FcPattern;
 #[cfg(target_os = "macos")]
 pub(crate) type RawPlatformFontRef = tectonic_mac_core::sys::CTFontDescriptorRef;
+#[cfg(target_os = "wasi")]
+pub(crate) type RawPlatformFontRef = *const WasiFontRef;
 /// cbindgen:ignore
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "wasi")))]
 pub(crate) type PlatformFontRef = fc::Pattern;
 /// cbindgen:ignore
 #[cfg(target_os = "macos")]
 pub(crate) type PlatformFontRef = tectonic_mac_core::CTFontDescriptor;
+/// cbindgen:ignore
+#[cfg(target_os = "wasi")]
+pub(crate) type PlatformFontRef = WasiFontRef;
+
+/// A font reference for WASI, holding a path and font index.
+#[cfg(target_os = "wasi")]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub(crate) struct WasiFontRef {
+    /// Path to the font file
+    pub path: std::ffi::CString,
+    /// Index within the font file (for .ttc collections)
+    pub index: i32,
+}
 
 /// key is combined value representing `(font_id, glyph)`
 /// value is glyph bounding box in TeX points

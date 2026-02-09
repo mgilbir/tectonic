@@ -368,6 +368,15 @@ impl Face {
         unsafe { self.0.as_ref() }
     }
 
+    /// Get a raw pointer to the underlying FT_FaceRec.
+    ///
+    /// # Safety
+    /// The returned pointer must not outlive this Face, and the caller
+    /// must not violate aliasing rules.
+    pub fn raw(&self) -> *const sys::FT_FaceRec {
+        self.0.as_ptr()
+    }
+
     /// Check whether this face is scalable
     pub fn is_scalable(&self) -> bool {
         self.inner().face_flags & sys::FT_FACE_FLAG_SCALABLE != 0

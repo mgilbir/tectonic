@@ -9,7 +9,7 @@
 #include "harfbuzz/hb-ft.h"
 #ifdef XETEX_MAC
 #include <ApplicationServices/ApplicationServices.h>
-#else
+#elif !defined(__wasi__)
 #include <fontconfig/fontconfig.h>
 #endif
 
@@ -58,12 +58,12 @@ typedef uint32_t OTTag;
 typedef int32_t Fixed;
 #endif
 
-#if !defined(XETEX_MAC)
-typedef FcPattern *RawPlatformFontRef;
-#endif
-
 #if defined(XETEX_MAC)
 typedef CTFontDescriptorRef RawPlatformFontRef;
+#elif defined(__wasi__)
+typedef const void *RawPlatformFontRef;
+#else
+typedef FcPattern *RawPlatformFontRef;
 #endif
 
 #ifdef __cplusplus

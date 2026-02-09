@@ -16,8 +16,11 @@ pub fn raw_to_rs(font: RawPlatformFontRef) -> Option<PlatformFontRef> {
         // SAFETY: Pointer must be from us, and is thus a borrowed ref
         NonNull::new(font.cast_mut()).map(|ptr| unsafe { PlatformFontRef::new_borrowed(ptr) })
     };
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "macos", target_os = "wasi")))]
     // SAFETY: Pointer must be from us, and is thus a borrowed ref
     let out = { unsafe { NonNull::new(font).map(|p| PlatformFontRef::from_raw_borrowed(p)) } };
+    #[cfg(target_os = "wasi")]
+    // SAFETY: Pointer must be from us, cloning the referenced WasiFontRef
+    let out = unsafe { font.as_ref().cloned() };
     out
 }

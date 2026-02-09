@@ -7,7 +7,7 @@ use std::path::Path;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex, OnceLock};
 use tectonic_bridge_core::{CoreBridgeState, FileFormat};
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "wasi")))]
 use tectonic_bridge_fontconfig as fc;
 use tectonic_bridge_freetype2 as ft;
 use tectonic_bridge_harfbuzz as hb;
@@ -175,7 +175,7 @@ pub struct Font {
 }
 
 impl Font {
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(not(any(target_os = "macos", target_os = "wasi")))]
     pub(crate) fn new(font: PlatformFontRef, point_size: f32) -> Result<Font, ()> {
         let path = font
             .as_ref()
@@ -185,6 +185,13 @@ impl Font {
         let index = font.as_ref().get::<fc::pat::Index>(0).unwrap_or(0);
 
         Font::new_path_index(path, index as usize, point_size)
+    }
+
+    #[cfg(target_os = "wasi")]
+    pub(crate) fn new(font: PlatformFontRef, point_size: f32) -> Result<Font, ()> {
+        let path = font.path.to_str().ok();
+        let index = font.index as usize;
+        Font::new_path_index(path, index, point_size)
     }
 
     #[cfg(target_os = "macos")]

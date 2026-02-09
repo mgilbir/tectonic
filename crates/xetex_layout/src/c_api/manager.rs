@@ -43,12 +43,18 @@ pub unsafe extern "C" fn findFontByName(
             .map(tectonic_mac_core::CTFontDescriptor::into_type_ref)
             .unwrap_or(ptr::null_mut())
     });
-    #[cfg(not(target_os = "macos"))]
-    FontManager::with_font_manager(|mgr| {
+    #[cfg(not(any(target_os = "macos", target_os = "wasi")))]
+    return FontManager::with_font_manager(|mgr| {
         mgr.find_font(name, var, size)
             .map(|pat| pat.as_ref().as_ptr())
             .unwrap_or(ptr::null_mut())
-    })
+    });
+    #[cfg(target_os = "wasi")]
+    return FontManager::with_font_manager(|mgr| {
+        mgr.find_font(name, var, size)
+            .map(|pat| Box::into_raw(Box::new(pat)) as *const _)
+            .unwrap_or(ptr::null())
+    });
 }
 
 #[no_mangle]

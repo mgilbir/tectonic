@@ -20,6 +20,9 @@ pub enum Backend {
 
     /// vcpkg
     Vcpkg,
+
+    /// Manual specification via environment variables (used for WASI cross-compilation)
+    Manual,
 }
 
 /// Dep-finding configuration.
@@ -42,9 +45,12 @@ impl Default for Configuration {
             match dep_backend_str.as_ref() {
                 "pkg-config" => Backend::PkgConfig,
                 "vcpkg" => Backend::Vcpkg,
+                "manual" => Backend::Manual,
                 "default" => Backend::default(),
                 other => panic!("unrecognized TECTONIC_DEP_BACKEND setting {other:?}"),
             }
+        } else if env::var("CARGO_CFG_TARGET_ARCH").as_deref() == Ok("wasm32") {
+            Backend::Manual
         } else {
             Backend::default()
         };
@@ -67,6 +73,22 @@ pub trait Spec {
     /// Get the vcpkg packages used to check for this dependency. These will be
     /// passed into `vcpkg::Config::find_package()`.
     fn get_vcpkg_spec(&self) -> &[&str];
+
+    /// Get the environment variable name prefix for the manual backend.
+    /// For example, "FREETYPE2" would look for FREETYPE2_INCLUDE_PATH and FREETYPE2_LIB_DIR.
+    /// Defaults to the uppercased pkg-config spec with hyphens replaced by underscores.
+    fn get_manual_env_prefix(&self) -> String {
+        self.get_pkgconfig_spec()
+            .to_uppercase()
+            .replace('-', "_")
+            .replace('+', "_")
+    }
+
+    /// Get the static library names to link for the manual backend.
+    /// Defaults to a single library matching the pkg-config spec.
+    fn get_manual_link_libs(&self) -> Vec<String> {
+        vec![self.get_pkgconfig_spec().replace("-", "").replace("+", "")]
+    }
 }
 
 /// Build-script state when using pkg-config as the backend.
@@ -81,6 +103,14 @@ struct VcPkgState {
     include_paths: Vec<PathBuf>,
 }
 
+/// Build-script state when using manual env-var specification.
+#[derive(Clone, Debug)]
+struct ManualState {
+    include_paths: Vec<PathBuf>,
+    lib_dirs: Vec<PathBuf>,
+    link_libs: Vec<String>,
+}
+
 /// State for discovering and managing a dependency, which may vary
 /// depending on the framework that we're using to discover them.
 #[derive(Debug)]
@@ -91,6 +121,9 @@ enum DepState {
 
     /// vcpkg
     VcPkg(VcPkgState),
+
+    /// Manual env-var specification
+    Manual(ManualState),
 }
 
 impl DepState {
@@ -99,6 +132,7 @@ impl DepState {
         match config.backend {
             Backend::PkgConfig => DepState::new_from_pkg_config(spec, config),
             Backend::Vcpkg => DepState::new_from_vcpkg(spec, config),
+            Backend::Manual => DepState::new_from_manual(spec),
         }
     }
 
@@ -143,6 +177,43 @@ impl DepState {
 
         DepState::VcPkg(VcPkgState { include_paths })
     }
+
+    /// Probe using manual environment variables.
+    fn new_from_manual<T: Spec>(spec: &T) -> Self {
+        let prefix = spec.get_manual_env_prefix();
+
+        let include_var = format!("{prefix}_INCLUDE_PATH");
+        let lib_var = format!("{prefix}_LIB_DIR");
+
+        println!("cargo:rerun-if-env-changed={include_var}");
+        println!("cargo:rerun-if-env-changed={lib_var}");
+
+        let include_paths = match env::var(&include_var) {
+            Ok(val) => val
+                .split(';')
+                .filter(|s| !s.is_empty())
+                .map(PathBuf::from)
+                .collect(),
+            Err(_) => vec![],
+        };
+
+        let lib_dirs = match env::var(&lib_var) {
+            Ok(val) => val
+                .split(';')
+                .filter(|s| !s.is_empty())
+                .map(PathBuf::from)
+                .collect(),
+            Err(_) => vec![],
+        };
+
+        let link_libs = spec.get_manual_link_libs();
+
+        DepState::Manual(ManualState {
+            include_paths,
+            lib_dirs,
+            link_libs,
+        })
+    }
 }
 
 /// A dependency.
@@ -178,6 +249,12 @@ impl<'a, T: Spec> Dependency<'a, T> {
             }
 
             DepState::VcPkg(ref s) => {
+                for p in &s.include_paths {
+                    f(p);
+                }
+            }
+
+            DepState::Manual(ref s) => {
                 for p in &s.include_paths {
                     f(p);
                 }
@@ -245,6 +322,15 @@ impl<'a, T: Spec> Dependency<'a, T> {
                 for dep in self.spec.get_vcpkg_spec() {
                     vcpkg::find_package(dep)
                         .unwrap_or_else(|e| panic!("failed to load package {dep} from vcpkg: {e}"));
+                }
+            }
+
+            DepState::Manual(ref state) => {
+                for lib_dir in &state.lib_dirs {
+                    println!("cargo:rustc-link-search=native={}", lib_dir.display());
+                }
+                for lib in &state.link_libs {
+                    println!("cargo:rustc-link-lib=static={lib}");
                 }
             }
         }

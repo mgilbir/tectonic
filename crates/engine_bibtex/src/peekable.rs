@@ -3,8 +3,11 @@ use crate::{
     char_info::LexClass,
     ASCIICode, Bibtex, BibtexError, BufPointer,
 };
-use libc::EOF;
 use std::{ffi::CStr, io};
+
+/// EOF constant (-1), matching C's EOF definition.
+/// Defined locally because `libc::EOF` is unavailable on WASI targets.
+const EOF: libc::c_int = -1;
 use tectonic_bridge_core::{CoreBridgeState, FileFormat, InputId};
 
 /* Sigh, I'm worried about ungetc() and EOF semantics in Bibtex's I/O, so

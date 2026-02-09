@@ -960,7 +960,7 @@ pub extern "C" fn ttbc_output_putc(
     let rc = c as u8;
 
     if es.output_write(handle.expect("valid handle"), &[rc]) {
-        libc::EOF
+        -1
     } else {
         c
     }
@@ -1150,7 +1150,7 @@ pub extern "C" fn ttbc_input_getc(
         Err(e) => {
             if let Some(ioe) = e.downcast_ref::<io::Error>() {
                 if ioe.kind() == io::ErrorKind::UnexpectedEof {
-                    return libc::EOF;
+                    return -1;
                 }
             }
 

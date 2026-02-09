@@ -32,6 +32,20 @@
 #include <dirent.h>
 #endif
 
+/* WASI does not provide mkstemp; supply a minimal replacement. */
+#ifdef __wasi__
+static int wasi_mkstemp(char *tmpl) {
+    size_t len = strlen(tmpl);
+    static unsigned long counter = 0;
+    if (len < 6) return -1;
+    char *suffix = tmpl + len - 6;
+    snprintf(suffix, 7, "%06lu", counter++ % 1000000UL);
+    int fd = open(tmpl, O_CREAT | O_EXCL | O_RDWR, 0600);
+    return fd;
+}
+#define mkstemp wasi_mkstemp
+#endif
+
 #include "dpx-dpxconf.h"
 #include "dpx-mem.h"
 #include "dpx-numbers.h"

@@ -13,7 +13,7 @@
 #include <unicode/platform.h> // defines U_IS_BIG_ENDIAN for us
 
 /* fontconfig */
-#ifndef XETEX_MAC
+#if !defined(XETEX_MAC) && !defined(__wasi__)
 #include <fontconfig/fontconfig.h>
 #endif
 

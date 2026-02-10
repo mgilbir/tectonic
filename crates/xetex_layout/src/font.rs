@@ -4,7 +4,6 @@ use crate::c_api::{Fixed, GlyphBBox, GlyphID, PlatformFontRef};
 use crate::utils::fix_to_d;
 use std::ffi::{CStr, CString};
 use std::path::Path;
-use std::str::FromStr;
 use std::sync::{Arc, Mutex, OnceLock};
 use tectonic_bridge_core::{CoreBridgeState, FileFormat};
 #[cfg(not(any(target_os = "macos", target_os = "wasi")))]
@@ -291,7 +290,7 @@ impl Font {
             Ok(())
         })?;
 
-        self.filename = CString::from_str(pathname).unwrap();
+        self.filename = CString::new(pathname).unwrap();
         self.index = index as u32;
         let upe = { self.ft_face().units_per_em() };
         self.units_per_em = upe;

@@ -21,6 +21,7 @@ use tectonic_engine_xetex::{TexEngine, TexOutcome};
 use tectonic_errors::{anyhow, Error, Result};
 use tectonic_io_base::digest::DigestData;
 use tectonic_io_base::filesystem::{FilesystemIo, FilesystemPrimaryInputIo};
+use tectonic_io_base::stdstreams::BufferedPrimaryIo;
 use tectonic_io_base::{
     normalize_tex_path, InputFeatures, InputHandle, InputOrigin, IoProvider, OpenResult,
     OutputHandle,
@@ -368,5 +369,124 @@ impl StatusBackend for WasiStatusBackend {
     fn dump_error_logs(&mut self, output: &[u8]) {
         // In WASI, just write to stderr
         let _ = std::io::stderr().write_all(output);
+    }
+}
+
+// ---- Format generation ----
+
+/// Generate a TeX format file (e.g. latex.fmt) in initex mode.
+///
+/// This eliminates the need for a native tectonic install to create format files.
+/// The generated format is written to `$TECTONIC_CACHE_DIR/<name>.fmt` (default `/cache/`).
+pub fn generate_format(bundle_dir: &str) -> Result<()> {
+    let mut status = WasiStatusBackend;
+
+    let bundle = DirBundle::new(PathBuf::from(bundle_dir));
+    let mem = MemoryIo::new(false);
+    let format_input = BufferedPrimaryIo::from_text("\\input tectonic-format-latex.tex");
+
+    let cache_dir = std::env::var("TECTONIC_CACHE_DIR").unwrap_or_else(|_| "/cache".to_string());
+    let _ = std::fs::create_dir_all(&cache_dir);
+
+    let mut bridge_state = FormatBridgeState {
+        bundle,
+        mem,
+        format_input,
+        cache_dir,
+    };
+
+    eprintln!("tectonic: generating latex.fmt (initex mode)");
+
+    let mut launcher = CoreBridgeLauncher::new(&mut bridge_state, &mut status);
+
+    let result = TexEngine::default()
+        .initex_mode(true)
+        .process(&mut launcher, "UNUSED.fmt", "latex")?;
+
+    match result {
+        TexOutcome::Errors => {
+            return Err(anyhow::anyhow!(
+                "TeX engine reported errors during format generation"
+            ));
+        }
+        _ => {}
+    }
+
+    // The format file is written to MemoryIo via output_open_name during \dump.
+    // Extract it and persist to the cache directory.
+    let cache_dir = &bridge_state.cache_dir;
+    if let Some(fmt_data) = bridge_state.mem.get_file("latex.fmt") {
+        let path = Path::new(cache_dir).join("latex.fmt");
+        std::fs::write(&path, &fmt_data)?;
+        eprintln!(
+            "tectonic: wrote {} ({} bytes)",
+            path.display(),
+            fmt_data.len()
+        );
+    } else {
+        return Err(anyhow::anyhow!(
+            "format generation completed but no latex.fmt was produced"
+        ));
+    }
+
+    eprintln!("tectonic: format generation complete");
+    Ok(())
+}
+
+/// Bridge state for format file generation (initex mode).
+struct FormatBridgeState {
+    bundle: DirBundle,
+    mem: MemoryIo,
+    format_input: BufferedPrimaryIo,
+    cache_dir: String,
+}
+
+impl DriverHooks for FormatBridgeState {
+    fn io(&mut self) -> &mut dyn IoProvider {
+        self
+    }
+
+    fn event_output_closed(&mut self, _name: String, _digest: DigestData) {}
+}
+
+impl IoProvider for FormatBridgeState {
+    fn output_open_name(&mut self, name: &str) -> OpenResult<OutputHandle> {
+        self.mem.output_open_name(name)
+    }
+
+    fn output_open_stdout(&mut self) -> OpenResult<OutputHandle> {
+        OpenResult::Ok(OutputHandle::new("", std::io::stdout()))
+    }
+
+    fn input_open_name(
+        &mut self,
+        name: &str,
+        status: &mut dyn StatusBackend,
+    ) -> OpenResult<InputHandle> {
+        let name_norm = normalize_tex_path(name).to_string();
+
+        match self.mem.input_open_name(&name_norm, status) {
+            OpenResult::Ok(h) => return OpenResult::Ok(h),
+            OpenResult::Err(e) => return OpenResult::Err(e),
+            OpenResult::NotAvailable => {}
+        }
+
+        self.bundle.input_open_name(&name_norm, status)
+    }
+
+    fn input_open_primary(&mut self, status: &mut dyn StatusBackend) -> OpenResult<InputHandle> {
+        self.format_input.input_open_primary(status)
+    }
+
+    fn write_format(
+        &mut self,
+        name: &str,
+        data: &[u8],
+        _status: &mut dyn StatusBackend,
+    ) -> Result<()> {
+        let path = Path::new(&self.cache_dir).join(name);
+        std::fs::write(&path, data)?;
+        eprintln!("tectonic: wrote format file {}", path.display());
+        Ok(())
     }
 }

@@ -41,6 +41,7 @@ export AR_wasm32_wasip1="${WASI_SDK_PATH}/bin/llvm-ar"
 SJLJ_STUB="${SCRIPT_DIR}/wasi-deps/sjlj-stub"
 export CFLAGS_wasm32_wasip1="--sysroot=${WASI_SDK_PATH}/share/wasi-sysroot -isystem ${SJLJ_STUB} -I${SYSROOT}/include -D_WASI_EMULATED_MMAN -D_WASI_EMULATED_SIGNAL"
 export CXXFLAGS_wasm32_wasip1="${CFLAGS_wasm32_wasip1} -fno-exceptions"
+export CARGO_TARGET_WASM32_WASIP1_LINKER="${WASI_SDK_PATH}/bin/clang"
 
 # ---------------------------------------------------------------------------
 # Tectonic dependency discovery (manual backend)

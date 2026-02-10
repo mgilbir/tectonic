@@ -1,7 +1,7 @@
 # Cargo configuration for wasm32-wasip1 cross-compilation.
 
 [target.wasm32-wasip1]
-linker = "/home/mgilbir/wasi-sdk/bin/clang"
+linker = "/opt/wasi-sdk/bin/clang"
 rustflags = [
-    "-C", "link-args=-Wl,--export=tectonic_compile -Wl,--export=tectonic_compile_defaults -lc++ -lc++abi -lwasi-emulated-mman -lwasi-emulated-signal",
+    "-C", "link-args=-Wl,--export=tectonic_compile -Wl,--export=tectonic_compile_defaults -Wl,--export=tectonic_generate_format -lc++ -lc++abi -lwasi-emulated-mman -lwasi-emulated-signal",
 ]

@@ -251,10 +251,8 @@ build_icu() {
     cp /usr/share/misc/config.sub "${ICU_SRC}/config.sub"
     cp /usr/share/misc/config.guess "${ICU_SRC}/config.guess" 2>/dev/null || true
 
-    # ICU doesn't have an mh-unknown platform fragment; copy mh-linux
-    if [ ! -f "${ICU_SRC}/config/mh-unknown" ]; then
-        cp "${ICU_SRC}/config/mh-linux" "${ICU_SRC}/config/mh-unknown"
-    fi
+    # ICU's mh-unknown stub errors out; always overwrite with mh-linux
+    cp "${ICU_SRC}/config/mh-linux" "${ICU_SRC}/config/mh-unknown"
 
     # -----------------------------------------------------------------
     # Step 1: Build a host (native) ICU -- needed for cross-compile

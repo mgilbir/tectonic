@@ -103,6 +103,30 @@ pub extern "C" fn tectonic_compile_defaults() -> i32 {
     }
 }
 
+/// Generate a TeX format file (latex.fmt) in initex mode.
+///
+/// Uses `/bundle/` as the TeX support files directory.
+/// The generated format file is written to `/cache/latex.fmt`.
+///
+/// # Returns
+/// 0 on success, non-zero on error.
+#[no_mangle]
+pub extern "C" fn tectonic_generate_format() -> i32 {
+    let result = std::panic::catch_unwind(|| driver::generate_format("/bundle"));
+
+    match result {
+        Ok(Ok(())) => 0,
+        Ok(Err(e)) => {
+            eprintln!("tectonic error: {e}");
+            1
+        }
+        Err(_) => {
+            eprintln!("tectonic panic during format generation");
+            2
+        }
+    }
+}
+
 /// Find the primary .tex file in the input directory.
 fn find_primary_tex_file(dir: &str) -> Option<String> {
     let entries = std::fs::read_dir(dir).ok()?;

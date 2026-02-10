@@ -180,7 +180,7 @@ impl Error {
         } else {
             // SAFETY: If non-null, the pointer returned by FT_Error_String is a valid C-string
             let str = unsafe { CStr::from_ptr(str) };
-            str::from_utf8(str.to_bytes()).ok()
+            std::str::from_utf8(str.to_bytes()).ok()
         }
     }
 

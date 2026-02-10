@@ -33,6 +33,16 @@ Returns 0 on success, 1 on TeX error, 2 on panic.
 Compile with explicit paths. Arguments are pointer/length pairs to UTF-8
 strings in WASM linear memory.
 
+### `tectonic_generate_format() -> i32`
+
+Generate a `latex.fmt` format file in initex mode. Reads TeX support files from
+`/bundle/` and writes the format to `/cache/latex.fmt`. Returns 0 on success, 1
+on TeX error, 2 on panic.
+
+This eliminates the need for a native Tectonic install. A downstream consumer
+can download the TeX Live bundle tar, extract it, call `tectonic_generate_format()`
+once, then copy `latex.fmt` into the bundle directory for subsequent compilations.
+
 ## Filesystem layout
 
 The host mounts these directories before calling the exports:
@@ -46,12 +56,8 @@ The host mounts these directories before calling the exports:
 | `/cache/`   | Format file cache (`latex.fmt`) |
 
 The bundle directory must contain a pre-compiled format file named `latex.fmt`.
-Generate it once with native Tectonic, then reuse it for all WASI compilations:
-
-```bash
-tectonic --only-cached -p '\documentclass{article}\begin{document}x\end{document}'
-cp ~/.cache/Tectonic/formats/*-latex-*.fmt /path/to/bundle/latex.fmt
-```
+Generate it via the `tectonic_generate_format()` WASM export (no native Tectonic
+needed), then copy it from `/cache/latex.fmt` into the bundle directory.
 
 ## Example: wazero (Go)
 
@@ -84,11 +90,26 @@ if err != nil || results[0] != 0 {
 // PDF is now at ./output/input.pdf
 ```
 
-A complete integration test is at `tests/wazero/main_test.go`:
+## Integration tests
+
+Tests live in `tests/wazero/`. Two test modes are available:
+
+**Quick test** — requires a pre-populated bundle directory with `latex.fmt`:
 
 ```bash
-TECTONIC_BUNDLE_DIR=/path/to/bundle TECTONIC_FONT_DIR=/path/to/fonts go test -v ./tests/wazero/
+TECTONIC_BUNDLE_DIR=/path/to/bundle go test -v ./tests/wazero/ -run TestTectonicCompileDefaults
 ```
+
+**Full workflow test** — downloads the TeX Live bundle (~3 GB), generates the
+format file via WASM, then compiles a document. No native Tectonic install
+required. Opt in with the `TECTONIC_TEST_FULL_WORKFLOW` env var:
+
+```bash
+TECTONIC_TEST_FULL_WORKFLOW=1 go test -v ./tests/wazero/ -run TestFullWorkflow -timeout 30m
+```
+
+The bundle tar is cached at `/tmp/tectonic-test-bundle/` so subsequent runs skip
+the download.
 
 ## Architecture decisions
 
@@ -182,7 +203,7 @@ has no threading.
 
 The `.cargo/config.toml` sets these flags for `wasm32-wasip1`:
 
-- `-Wl,--export=tectonic_compile` / `--export=tectonic_compile_defaults` — reactor exports
+- `-Wl,--export=tectonic_compile` / `--export=tectonic_compile_defaults` / `--export=tectonic_generate_format` — reactor exports
 - `-lc++ -lc++abi` — C++ runtime for HarfBuzz
 - `-lwasi-emulated-mman` — `mmap`/`munmap` emulation
 - `-lwasi-emulated-signal` — signal emulation

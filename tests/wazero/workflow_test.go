@@ -103,8 +103,8 @@ func fetchBundle(t *testing.T) string {
 //  3. Compile a LaTeX document via tectonic_compile_defaults()
 //  4. Verify the resulting PDF
 func TestFullWorkflow(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping: requires ~3 GB bundle download")
+	if os.Getenv("TECTONIC_TEST_FULL_WORKFLOW") == "" {
+		t.Skip("skipping: set TECTONIC_TEST_FULL_WORKFLOW=1 to enable (downloads ~3 GB bundle)")
 	}
 
 	// ---- Step 1: Get the bundle ----

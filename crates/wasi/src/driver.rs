@@ -7,7 +7,6 @@
 //! within the WASI sandbox. It omits: network bundles, shell escape, file
 //! watching, async/tokio, process spawning, and HTML output.
 
-use sha2::Digest;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::io::{Cursor, Read, Write};
@@ -29,6 +28,18 @@ use tectonic_io_base::{
 use tectonic_status_base::{MessageKind, StatusBackend};
 
 const MAX_TEX_PASSES: usize = 6;
+
+/// Maximum TeX passes for this run, configurable via the `TECTONIC_MAX_PASSES`
+/// environment variable (clamped to 1..=MAX_TEX_PASSES). Setting it to 1 skips
+/// rerun convergence entirely, which is safe when the document uses no
+/// cross-references, citations, or tables of contents.
+fn max_tex_passes() -> usize {
+    std::env::var("TECTONIC_MAX_PASSES")
+        .ok()
+        .and_then(|v| v.parse::<usize>().ok())
+        .map(|n| n.clamp(1, MAX_TEX_PASSES))
+        .unwrap_or(MAX_TEX_PASSES)
+}
 
 /// Compile a TeX document.
 pub fn compile(input_path: &str, output_dir: &str, bundle_dir: &str) -> Result<()> {
@@ -77,9 +88,23 @@ pub fn compile(input_path: &str, output_dir: &str, bundle_dir: &str) -> Result<(
     };
 
     // Phase 1: Multi-pass TeX processing
-    let mut prev_digest: Option<[u8; 32]> = None;
+    let max_passes = max_tex_passes();
+    let aux_name = format!("{base_name}.aux");
 
-    for pass in 0..MAX_TEX_PASSES {
+    // Warm-aux seeding: the host may place feedback files from a previous
+    // compilation of this document (.aux/.toc/.lof/...) in the input
+    // directory. The engine picks them up through the filesystem fallback in
+    // input_open_name, and if the aux written by the first pass is identical
+    // to the seeded one it read, the fixed point is already reached and the
+    // rerun is skipped. A stale seed only costs extra passes, never wrong
+    // output, since every pass regenerates the aux from scratch.
+    let mut prev_aux = std::fs::read(input_dir.join(&aux_name)).ok();
+    let mut have_prev = prev_aux.is_some();
+    if have_prev {
+        eprintln!("tectonic: found existing {aux_name}, seeding rerun check");
+    }
+
+    for pass in 0..max_passes {
         eprintln!("tectonic: running TeX pass {}", pass + 1);
 
         let mut launcher = CoreBridgeLauncher::new(&mut bridge_state, &mut status);
@@ -95,7 +120,6 @@ pub fn compile(input_path: &str, output_dir: &str, bundle_dir: &str) -> Result<(
 
         // Check for BibTeX needs (look for \bibdata in .aux)
         if pass == 0 {
-            let aux_name = format!("{base_name}.aux");
             if let Some(aux_data) = bridge_state.mem.get_file(&aux_name) {
                 let aux_str = String::from_utf8_lossy(&aux_data);
                 if aux_str.contains("\\bibdata") {
@@ -107,27 +131,20 @@ pub fn compile(input_path: &str, output_dir: &str, bundle_dir: &str) -> Result<(
             }
         }
 
-        // Check if we need to rerun - compare aux file digest
-        let aux_name = format!("{base_name}.aux");
-        let current_digest = bridge_state.mem.get_file(&aux_name).map(|data| {
-            let mut hasher = sha2::Sha256::new();
-            hasher.update(&data);
-            let hash: [u8; 32] = hasher.finalize().into();
-            hash
-        });
+        // Check if we need to rerun - compare aux file content. With a
+        // seeded aux this can already fire after the first pass.
+        let current_aux = bridge_state.mem.get_file(&aux_name);
 
-        if pass > 0 && prev_digest == current_digest {
+        if have_prev && prev_aux == current_aux {
             eprintln!("tectonic: output converged after {} passes", pass + 1);
             break;
         }
 
-        prev_digest = current_digest;
+        prev_aux = current_aux;
+        have_prev = true;
 
-        if pass == MAX_TEX_PASSES - 1 {
-            eprintln!(
-                "tectonic: warning: reached max {} TeX passes",
-                MAX_TEX_PASSES
-            );
+        if pass == max_passes - 1 && max_passes > 1 {
+            eprintln!("tectonic: warning: reached max {max_passes} TeX passes");
         }
     }
 
@@ -152,6 +169,16 @@ pub fn compile(input_path: &str, output_dir: &str, bundle_dir: &str) -> Result<(
         eprintln!("tectonic: wrote {}", out_file.display());
     } else {
         return Err(anyhow::anyhow!("no PDF output was generated"));
+    }
+
+    // Export feedback state files so the host can seed the next compilation
+    // of this document (warm aux): place them back in /input and a converged
+    // document compiles in a single pass.
+    for ext in ["aux", "toc", "lof", "lot", "out", "bbl"] {
+        let name = format!("{base_name}.{ext}");
+        if let Some(data) = bridge_state.mem.get_file(&name) {
+            let _ = std::fs::write(output_path.join(&name), &data);
+        }
     }
 
     Ok(())
@@ -190,6 +217,7 @@ struct MemoryItem {
     files: Rc<RefCell<HashMap<String, Vec<u8>>>>,
     name: String,
     data: Cursor<Vec<u8>>,
+    dirty: bool,
 }
 
 impl Read for MemoryItem {
@@ -200,6 +228,7 @@ impl Read for MemoryItem {
 
 impl Write for MemoryItem {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.dirty = true;
         self.data.write(buf)
     }
     fn flush(&mut self) -> std::io::Result<()> {
@@ -209,8 +238,11 @@ impl Write for MemoryItem {
 
 impl Drop for MemoryItem {
     fn drop(&mut self) {
-        let data = self.data.get_ref().clone();
-        self.files.borrow_mut().insert(self.name.clone(), data);
+        // Read-only handles hold an unmodified copy; skip the write-back clone.
+        if self.dirty {
+            let data = self.data.get_ref().clone();
+            self.files.borrow_mut().insert(self.name.clone(), data);
+        }
     }
 }
 
@@ -235,6 +267,9 @@ impl IoProvider for MemoryIo {
             files: self.files.clone(),
             name: name.clone(),
             data: Cursor::new(Vec::new()),
+            // Outputs always persist on close so an opened-but-empty output
+            // file still exists afterwards.
+            dirty: true,
         };
         OpenResult::Ok(OutputHandle::new(&name, item))
     }
@@ -261,6 +296,7 @@ impl IoProvider for MemoryIo {
             files: self.files.clone(),
             name: name.clone(),
             data: Cursor::new(data),
+            dirty: false,
         };
         OpenResult::Ok(InputHandle::new(&name, item, InputOrigin::Other))
     }

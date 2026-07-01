@@ -227,11 +227,14 @@ impl InputFeatures for MemoryItem {
 impl IoProvider for MemoryIo {
     fn output_open_name(&mut self, name: &str) -> OpenResult<OutputHandle> {
         let name = normalize_tex_path(name).to_string();
-        let data = self.files.borrow().get(&name).cloned().unwrap_or_default();
+        // Truncate like a real file open-for-write: preloading the previous
+        // pass's contents would leave stale tail bytes behind whenever the
+        // new contents are shorter (corrupting e.g. the .xdv when a rerun
+        // shrinks a resolved reference).
         let item = MemoryItem {
             files: self.files.clone(),
             name: name.clone(),
-            data: Cursor::new(data),
+            data: Cursor::new(Vec::new()),
         };
         OpenResult::Ok(OutputHandle::new(&name, item))
     }

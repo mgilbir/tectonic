@@ -1,7 +1,9 @@
 /* Stub setjmp.h for WASI builds without exception handling.
  *
  * setjmp() always returns 0 (the "normal" path).
- * longjmp() calls abort() — the WASM runtime catches the trap.
+ * longjmp() ends the instance with a WASI proc_exit carrying a reserved status
+ * code (see setjmp.c) — a typed signal the host can classify, instead of an
+ * untyped abort()/unreachable trap.
  *
  * This avoids WebAssembly exception handling instructions, making the
  * resulting module compatible with any WASM runtime (wazero, wasmtime, etc).

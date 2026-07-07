@@ -17,6 +17,25 @@ fn main() {
     // The host (wazero) calls tectonic_compile() or tectonic_compile_defaults() instead.
 }
 
+/// Version of the host-facing ABI this module implements.
+///
+/// The contract this number covers: the exported function names and signatures
+/// (tectonic_compile, tectonic_compile_defaults, tectonic_generate_format), the
+/// reserved proc_exit status for a controlled engine abort (see the sjlj stub),
+/// the recognized environment variables (TECTONIC_MAX_PASSES, TECTONIC_CACHE_DIR,
+/// TECTONIC_FONT_DIR), and the guest mount layout.
+///
+/// The embedding host reads this once at startup and refuses a module whose ABI
+/// it was not built for, so a rebuild from an incompatible source fails loudly
+/// instead of drifting into subtle misbehavior. Returning a constant means it is
+/// callable without running _initialize.
+///
+/// Bump this whenever any part of that contract changes.
+#[no_mangle]
+pub extern "C" fn tectonic_abi_version() -> i32 {
+    1
+}
+
 /// Compile a TeX document to PDF.
 ///
 /// # Arguments

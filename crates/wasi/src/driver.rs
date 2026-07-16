@@ -12,6 +12,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::{Cursor, Read, Write};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::time::{Duration, SystemTime};
 use tectonic_bridge_core::{CoreBridgeLauncher, DriverHooks};
 use tectonic_bundles::dir::DirBundle;
 use tectonic_engine_bibtex::BibtexEngine;
@@ -39,6 +40,26 @@ fn max_tex_passes() -> usize {
         .and_then(|v| v.parse::<usize>().ok())
         .map(|n| n.clamp(1, MAX_TEX_PASSES))
         .unwrap_or(MAX_TEX_PASSES)
+}
+
+/// Resolve the build date that drives `\today` / `\year` / `\month` / `\day` and
+/// the PDF timestamp.
+///
+/// The WASI sandbox has no real clock, so without this the engines default to
+/// `SystemTime::UNIX_EPOCH` and every document renders 1970-01-01. The host
+/// passes the intended date through `SOURCE_DATE_EPOCH` (seconds since the Unix
+/// epoch, the reproducible-builds standard); parsing as `u64` rejects negative or
+/// malformed values, falling back to the epoch so behavior stays deterministic
+/// when the variable is unset. A single value is resolved once per compile so
+/// every pass — and the PDF metadata — agree.
+fn resolve_build_date() -> SystemTime {
+    match std::env::var("SOURCE_DATE_EPOCH")
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+    {
+        Some(secs) => SystemTime::UNIX_EPOCH + Duration::from_secs(secs),
+        None => SystemTime::UNIX_EPOCH,
+    }
 }
 
 /// Compile a TeX document.
@@ -104,12 +125,19 @@ pub fn compile(input_path: &str, output_dir: &str, bundle_dir: &str) -> Result<(
         eprintln!("tectonic: found existing {aux_name}, seeding rerun check");
     }
 
+    // Resolved once so every pass and the final PDF share one date (see
+    // resolve_build_date); the WASI sandbox exposes no clock, so this is the only
+    // source of a real date.
+    let build_date = resolve_build_date();
+
     for pass in 0..max_passes {
         eprintln!("tectonic: running TeX pass {}", pass + 1);
 
         let mut launcher = CoreBridgeLauncher::new(&mut bridge_state, &mut status);
 
-        let result = TexEngine::default().process(&mut launcher, &format_name, &tex_name)?;
+        let mut engine = TexEngine::default();
+        engine.build_date(build_date);
+        let result = engine.process(&mut launcher, &format_name, &tex_name)?;
 
         match result {
             TexOutcome::Errors => {
@@ -153,7 +181,9 @@ pub fn compile(input_path: &str, output_dir: &str, bundle_dir: &str) -> Result<(
         eprintln!("tectonic: running xdvipdfmx");
         let mut launcher = CoreBridgeLauncher::new(&mut bridge_state, &mut status);
 
-        XdvipdfmxEngine::default().process(&mut launcher, &xdv_name, &pdf_name)?;
+        let mut xdvipdfmx = XdvipdfmxEngine::default();
+        xdvipdfmx.build_date(build_date);
+        xdvipdfmx.process(&mut launcher, &xdv_name, &pdf_name)?;
 
         // Remove intermediate XDV file
         bridge_state.mem.remove_file(&xdv_name);

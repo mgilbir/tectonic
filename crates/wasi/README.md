@@ -21,6 +21,49 @@ WASI_SDK_PATH=~/wasi-sdk build-wasi.sh
 # → target/wasm32-wasip1/release/tectonic_wasi.wasm (≈5 MB)
 ```
 
+## Branch model and keeping up with upstream
+
+This is a fork of [tectonic-typesetting/tectonic](https://github.com/tectonic-typesetting/tectonic). Three kinds of branch:
+
+| Branch | Role |
+|--------|------|
+| `master` | A plain mirror of upstream Tectonic's `master`. No fork changes land here. |
+| `wasm` | The canonical fork branch: `master` plus the WASI reactor crate and the engine/build patches needed to run under wazero. This is the branch downstreams pin. |
+| feature branches (`wasm-*`) | Short-lived; open a PR into `wasm`, then delete. |
+
+The fork's delta over upstream is small, localized, and falls in two buckets — keep both in mind when rebasing:
+
+1. **Build infrastructure** — the `crates/wasi` reactor crate, the `wasi-deps/` external-library builds, the setjmp/longjmp stub, the `Manual` dep backend, and per-crate `wasm32` build-script and linker patches. New files and cfg-gated additions; these rarely conflict with upstream.
+2. **Host-contract features** — behavior the embedding host relies on, all in the driver, the engines, or the exports: `malloc`/`free` exports, in-memory output truncation, warm-aux seeding + state export + `TECTONIC_MAX_PASSES`, the typed `proc_exit` abort status, `SOURCE_DATE_EPOCH` → build date, and the `tectonic_abi_version` handshake. **A change here must bump the ABI version (below).**
+
+### Syncing with upstream
+
+```bash
+git remote add upstream https://github.com/tectonic-typesetting/tectonic.git   # once
+git fetch upstream
+git checkout master && git merge --ff-only upstream/master && git push origin master
+git checkout wasm && git rebase master        # replay the fork delta onto new upstream
+WASI_SDK_PATH=~/wasi-sdk wasi-deps/build-wasi-deps.sh   # only if a C dep version changed
+WASI_SDK_PATH=~/wasi-sdk ./build-wasi.sh               # rebuild the module
+go test ./tests/wazero/...                              # fork integration tests
+```
+
+Then rebuild and test the downstream module (for tecgonic: bump `TECTONIC_REF`, `make wasm`, `go test ./...`).
+
+## Host ABI contract
+
+`tectonic_abi_version()` returns an integer the embedding host checks at startup and refuses on mismatch, so a rebuild from incompatible source fails loudly instead of drifting into silent misbehavior. The number covers:
+
+- the exported function names and signatures (`tectonic_compile`, `tectonic_compile_defaults`, `tectonic_generate_format`, `malloc`, `free`);
+- the reserved `proc_exit` status for a controlled engine abort (`42`, via the sjlj stub);
+- the recognized environment variables (`TECTONIC_MAX_PASSES`, `TECTONIC_CACHE_DIR`, `TECTONIC_FONT_DIR`, `SOURCE_DATE_EPOCH`);
+- the guest mount layout (`/input`, `/output`, `/bundle`, `/fonts`, `/cache`).
+
+**Bump `tectonic_abi_version` (in `src/main.rs`) whenever any of that changes, and bump the host's expected version in the same change** (for tecgonic, `expectedABIVersion` in `tecgonic.go`). Current version history:
+
+- **1** — typed `proc_exit` abort status; `TECTONIC_MAX_PASSES`.
+- **2** — `SOURCE_DATE_EPOCH` drives the document date (`\today`) and PDF timestamp; without it documents render 1970-01-01.
+
 ## Exported API
 
 ### `tectonic_compile_defaults() -> i32`

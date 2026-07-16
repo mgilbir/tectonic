@@ -23,7 +23,7 @@ fn main() {
 /// (tectonic_compile, tectonic_compile_defaults, tectonic_generate_format), the
 /// reserved proc_exit status for a controlled engine abort (see the sjlj stub),
 /// the recognized environment variables (TECTONIC_MAX_PASSES, TECTONIC_CACHE_DIR,
-/// TECTONIC_FONT_DIR), and the guest mount layout.
+/// TECTONIC_FONT_DIR, SOURCE_DATE_EPOCH), and the guest mount layout.
 ///
 /// The embedding host reads this once at startup and refuses a module whose ABI
 /// it was not built for, so a rebuild from an incompatible source fails loudly
@@ -31,9 +31,14 @@ fn main() {
 /// callable without running _initialize.
 ///
 /// Bump this whenever any part of that contract changes.
+///
+/// History:
+/// - 1: initial handshake (typed abort status, TECTONIC_MAX_PASSES).
+/// - 2: SOURCE_DATE_EPOCH drives the document date (\today) and the PDF
+///   timestamp; without it a document renders 1970-01-01.
 #[no_mangle]
 pub extern "C" fn tectonic_abi_version() -> i32 {
-    1
+    2
 }
 
 /// Compile a TeX document to PDF.
